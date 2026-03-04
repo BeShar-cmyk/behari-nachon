@@ -329,10 +329,10 @@ function endGame() {
 
     const pct = (score / (TOTAL_ROUNDS * 200)) * 100;
     let grade;
-    if      (pct >= 80) grade = '🏆 מדהים! אתה/את אלוף/ת הקטגוריות!';
+    if      (pct >= 80) grade = '🏆 מדהים! את אלופת הקטגוריות!';
     else if (pct >= 60) grade = '⭐ יופי! תוצאה מצוינת!';
-    else if (pct >= 40) grade = '👍 לא רע! נסה/י שוב לשפר!';
-    else                grade = '💪 אל תוותר/י! תנסה/י שוב!';
+    else if (pct >= 40) grade = '👍 לא רע! נסי שוב לשפר!';
+    else                grade = '💪 אל תוותרי! נסי שוב!';
     setText('final-grade', grade);
 }
 
