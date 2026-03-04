@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>בחר נכון! ⚡</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- שכבת overlay לפלאש נכון/לא נכון -->
+    <div id="feedback-overlay"></div>
+
+    <div id="game-container">
+
+        <div id="header">
+            <div>ניקוד: <span id="score">0</span></div>
+            <div>סיבוב: <span id="round">0</span>/10</div>
+            <div id="streak-badge">🔥 <span id="streak">0</span></div>
+            <button id="sound-btn" onclick="toggleSound()" title="הפעל/כבה צלילים">🔊</button>
+        </div>
+
+        <!-- קומבו -->
+        <div id="combo-banner" class="hidden">x<span id="combo-num">2</span> COMBO!</div>
+
+        <!-- מסך פתיחה -->
+        <div id="start-screen" class="screen">
+            <div id="logo-symbol"></div>
+            <h1>בחר נכון!</h1>
+            <p>כרטיס מופיע עם קטגוריה.<br>לחץ על המילה שמתאימה<br>לפני שנגמר הזמן!</p>
+            <button onclick="startGame()">התחל משחק ⚡</button>
+        </div>
+
+        <!-- מסך משחק -->
+        <div id="game-screen" class="screen hidden">
+            <div id="card">
+                <div id="symbol-shape"></div>
+                <div id="question-label">מה שייך לקטגוריה?</div>
+                <div id="category-name"></div>
+            </div>
+            <div id="timer-bar">
+                <div id="timer-fill"></div>
+            </div>
+            <div id="options-grid"></div>
+        </div>
+
+        <!-- מסך תוצאה -->
+        <div id="result-screen" class="screen hidden">
+            <div id="result-emoji"></div>
+            <div id="result-title"></div>
+            <div id="result-msg"></div>
+        </div>
+
+        <!-- מסך סיום -->
+        <div id="end-screen" class="screen hidden">
+            <h1>המשחק הסתיים! 🎉</h1>
+            <div id="final-score"></div>
+            <div id="final-grade"></div>
+            <button onclick="resetGame()">שחק שוב</button>
+        </div>
+
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>
