@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>שידור חי בסכנה — מדריך ניהול תקלות</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #080b14;
+    --surface:   #0e1526;
+    --border:    #1e2d50;
+    --amber:     #f59e0b;
+    --amber-dim: #78490a;
+    --red:       #ef4444;
+    --red-dim:   #7f1d1d;
+    --green:     #10b981;
+    --green-dim: #064e3b;
+    --blue:      #3b82f6;
+    --blue-dim:  #1e3a5f;
+    --text:      #e2e8f0;
+    --muted:     #64748b;
+    --mono:      'Share Tech Mono', monospace;
+    --sans:      'Heebo', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* ─── GRID BACKGROUND ─── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(59,130,246,.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(59,130,246,.04) 1px, transparent 1px);
+    background-size: 48px 48px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ─── SCANLINE EFFECT ─── */
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,.08) 2px,
+      rgba(0,0,0,.08) 4px
+    );
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ─── SLIDES CONTAINER ─── */
+  #slides {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    z-index: 1;
+  }
+
+  .slide {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 40px 60px;
+    opacity: 0;
+    transform: translateX(-60px);
+    transition: opacity .5s ease, transform .5s ease;
+    pointer-events: none;
+  }
+  .slide.active {
+    opacity: 1;
+    transform: translateX(0);
+    pointer-events: all;
+  }
+  .slide.exit {
+    opacity: 0;
+    transform: translateX(60px);
+    transition: opacity .4s ease, transform .4s ease;
+  }
+
+  /* ─── TOP BAR ─── */
+  .topbar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 28px;
+    background: rgba(8,11,20,.85);
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(8px);
+    z-index: 100;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .topbar-left { display: flex; align-items: center; gap: 16px; }
+  .status-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--red);
+    box-shadow: 0 0 8px var(--red);
+    animation: pulse-dot 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse-dot {
+    0%,100% { opacity: 1; }
+    50%      { opacity: .3; }
+  }
+  .slide-counter { color: var(--amber); }
+
+  /* ─── PROGRESS BAR ─── */
+  #progress-bar {
+    position: fixed;
+    bottom: 0; left: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--amber), var(--red));
+    transition: width .4s ease;
+    z-index: 100;
+    box-shadow: 0 0 12px var(--amber);
+  }
+
+  /* ─── NAV ARROWS ─── */
+  .nav-btn {
+    position: fixed;
+    top: 50%; transform: translateY(-50%);
+    background: rgba(14,21,38,.8);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    width: 44px; height: 44px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    transition: all .2s;
+    z-index: 100;
+    backdrop-filter: blur(4px);
+  }
+  .nav-btn:hover { border-color: var(--amber); color: var(--amber); }
+  #btn-prev { left: 16px; }
+  #btn-next { right: 16px; }
+
+  /* ─── DOT NAVIGATION ─── */
+  #dots {
+    position: fixed;
+    bottom: 20px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 8px;
+    z-index: 100;
+  }
+  .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--border);
+    cursor: pointer;
+    transition: all .3s;
+  }
+  .dot.active {
+    background: var(--amber);
+    box-shadow: 0 0 6px var(--amber);
+    width: 18px;
+    border-radius: 3px;
+  }
+
+  /* ─── SHARED ELEMENTS ─── */
+  .tag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .12em;
+    padding: 4px 10px;
+    border-radius: 2px;
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+  .tag-amber { background: rgba(245,158,11,.15); color: var(--amber); border: 1px solid var(--amber-dim); }
+  .tag-red   { background: rgba(239,68,68,.15);  color: var(--red);   border: 1px solid var(--red-dim);   }
+  .tag-green { background: rgba(16,185,129,.15); color: var(--green); border: 1px solid var(--green-dim); }
+  .tag-blue  { background: rgba(59,130,246,.15); color: var(--blue);  border: 1px solid var(--blue-dim);  }
+
+  h1 { font-size: clamp(2.4rem, 5vw, 4rem); font-weight: 900; line-height: 1.1; }
+  h2 { font-size: clamp(1.8rem, 3.5vw, 2.8rem); font-weight: 700; line-height: 1.2; }
+  h3 { font-size: clamp(1.1rem, 2vw, 1.5rem); font-weight: 600; }
+  p  { font-size: clamp(.9rem, 1.5vw, 1.1rem); line-height: 1.7; color: var(--muted); }
+
+  .content-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 28px 32px;
+    width: 100%;
+    position: relative;
+    overflow: hidden;
+  }
+  .content-box::before {
+    content: '';
+    position: absolute;
+    top: 0; right: 0;
+    width: 3px; height: 100%;
+    background: var(--accent, var(--amber));
+  }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; width: 100%; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; width: 100%; }
+
+  .step-list { list-style: none; display: flex; flex-direction: column; gap: 12px; }
+  .step-list li {
+    display: flex; align-items: flex-start; gap: 14px;
+    font-size: clamp(.85rem, 1.4vw, 1rem);
+    line-height: 1.5;
+  }
+  .step-num {
+    flex-shrink: 0;
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    background: rgba(245,158,11,.12);
+    border: 1px solid var(--amber-dim);
+    color: var(--amber);
+  }
+  .step-num.red   { background: rgba(239,68,68,.12);  border-color: var(--red-dim);   color: var(--red);   }
+  .step-num.green { background: rgba(16,185,129,.12); border-color: var(--green-dim); color: var(--green); }
+  .step-num.blue  { background: rgba(59,130,246,.12); border-color: var(--blue-dim);  color: var(--blue);  }
+
+  .time-badge {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 2px;
+    background: rgba(100,116,139,.15);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .divider {
+    width: 100%; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border), transparent);
+    margin: 24px 0;
+  }
+
+  .big-number {
+    font-family: var(--mono);
+    font-size: clamp(3rem, 8vw, 7rem);
+    font-weight: 700;
+    line-height: 1;
+    background: linear-gradient(135deg, var(--amber), #ff6b35);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .big-number.red   { background: linear-gradient(135deg, var(--red), #ff6b35); -webkit-background-clip: text; background-clip: text; }
+  .big-number.green { background: linear-gradient(135deg, var(--green), #06b6d4); -webkit-background-clip: text; background-clip: text; }
+
+  /* corner decoration */
+  .corner-deco {
+    position: absolute;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: rgba(100,116,139,.3);
+    letter-spacing: .08em;
+  }
+
+  /* ══════════════════════════════════════════════
+     SLIDE 1 — INTRO
+  ══════════════════════════════════════════════ */
+  #slide-1 { text-align: center; }
+  #slide-1 .hero-wrapper {
+    display: flex; flex-direction: column; align-items: center; gap: 24px;
+    max-width: 820px;
+  }
+  .glitch-line {
+    font-family: var(--mono);
+    font-size: clamp(.7rem, 1.2vw, .9rem);
+    color: var(--red);
+    letter-spacing: .2em;
+    animation: glitch 3s step-end infinite;
+  }
+  @keyframes glitch {
+    0%,90%,100% { opacity: 1; transform: none; }
+    92% { transform: translateX(-3px); opacity: .8; }
+    94% { transform: translateX(3px) scaleX(1.01); }
+    96% { transform: translateX(-2px); opacity: .6; }
+  }
+  #slide-1 h1 span { color: var(--amber); }
+  .subtitle-line {
+    font-size: clamp(.9rem, 1.6vw, 1.1rem);
+    color: var(--muted);
+    max-width: 560px;
+    line-height: 1.6;
+  }
+  .stat-row {
+    display: flex; gap: 40px; margin-top: 16px; justify-content: center;
+  }
+  .stat-item { text-align: center; }
+  .stat-val {
+    font-family: var(--mono);
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--amber);
+  }
+  .stat-lbl {
+    font-size: .75rem;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  /* ══════════════════════════════════════════════
+     SLIDE 2 — PRE-BROADCAST PREP
+  ══════════════════════════════════════════════ */
+  #slide-2 .wrapper { display: flex; flex-direction: column; gap: 20px; max-width: 860px; width: 100%; }
+
+  /* ══════════════════════════════════════════════
+     SLIDE 3 — FIRST FREEZE
+  ══════════════════════════════════════════════ */
+  #slide-3 .incident-banner {
+    width: 100%;
+    background: rgba(239,68,68,.08);
+    border: 1px solid var(--red-dim);
+    border-radius: 6px;
+    padding: 16px 24px;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .alert-icon {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: rgba(239,68,68,.15);
+    border: 2px solid var(--red);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+    animation: alert-pulse 2s ease-in-out infinite;
+  }
+  @keyframes alert-pulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,.4); }
+    50%      { box-shadow: 0 0 0 10px rgba(239,68,68,0); }
+  }
+
+  /* ══════════════════════════════════════════════
+     SLIDE 4 — SECOND FREEZE
+  ══════════════════════════════════════════════ */
+  .escalation-chain {
+    display: flex; align-items: center; gap: 0; width: 100%;
+    justify-content: center; flex-wrap: nowrap;
+  }
+  .esc-node {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px 18px;
+    text-align: center;
+    flex: 1;
+    min-width: 120px;
+  }
+  .esc-node.active { border-color: var(--amber); }
+  .esc-node .esc-role { font-size: .7rem; color: var(--muted); font-family: var(--mono); letter-spacing: .08em; }
+  .esc-node .esc-name { font-size: .95rem; font-weight: 600; margin-top: 4px; }
+  .esc-arrow { color: var(--border); font-size: 1.4rem; padding: 0 6px; flex-shrink: 0; }
+
+  /* ══════════════════════════════════════════════
+     SLIDE 5 — THIRD FREEZE / CRISIS
+  ══════════════════════════════════════════════ */
+  .crisis-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; width: 100%; }
+  .crisis-option {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+  .crisis-option::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 2px;
+  }
+  .crisis-option.opt-a::after { background: var(--green); }
+  .crisis-option.opt-b::after { background: var(--blue); }
+  .crisis-option.opt-c::after { background: var(--amber); }
+  .crisis-option.opt-d::after { background: var(--red); }
+
+  /* ══════════════════════════════════════════════
+     SLIDE 6 — COMMUNICATION
+  ══════════════════════════════════════════════ */
+  .msg-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px 20px;
+  }
+  .msg-platform {
+    font-family: var(--mono);
+    font-size: .7rem;
+    color: var(--muted);
+    letter-spacing: .1em;
+    margin-bottom: 8px;
+  }
+  .msg-body {
+    font-size: .9rem;
+    line-height: 1.6;
+    color: var(--text);
+    border-right: 2px solid var(--amber);
+    padding-right: 12px;
+  }
+
+  /* ══════════════════════════════════════════════
+     SLIDE 7 — LESSONS
+  ══════════════════════════════════════════════ */
+  .lesson-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 20px;
+    display: flex; flex-direction: column; gap: 8px;
+    position: relative; overflow: hidden;
+  }
+  .lesson-card::before {
+    content: '';
+    position: absolute;
+    top: 0; right: 0;
+    width: 100%; height: 2px;
+  }
+  .lesson-card:nth-child(1)::before { background: var(--red); }
+  .lesson-card:nth-child(2)::before { background: var(--amber); }
+  .lesson-card:nth-child(3)::before { background: var(--green); }
+  .lesson-card:nth-child(4)::before { background: var(--blue); }
+  .lesson-card:nth-child(5)::before { background: #8b5cf6; }
+  .lesson-card:nth-child(6)::before { background: #06b6d4; }
+  .lesson-icon { font-size: 1.6rem; }
+  .lesson-title { font-size: .95rem; font-weight: 700; }
+  .lesson-desc  { font-size: .82rem; color: var(--muted); line-height: 1.5; }
+
+  /* ══════════════════════════════════════════════
+     SLIDE 8 — SUMMARY
+  ══════════════════════════════════════════════ */
+  #slide-8 { text-align: center; }
+  .summary-grid {
+    display: grid; grid-template-columns: repeat(3,1fr); gap: 16px;
+    width: 100%; max-width: 860px;
+    margin-top: 28px;
+  }
+  .summary-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 24px 16px;
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+  }
+  .summary-card .icon { font-size: 2rem; }
+  .summary-card .s-num { font-family: var(--mono); font-size: .85rem; color: var(--muted); }
+  .summary-card .s-title { font-size: 1rem; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="status-dot"></div>
+    <span>INCIDENT RESPONSE GUIDE</span>
+    <span>// שידור חי</span>
+  </div>
+  <div style="display:flex;gap:24px;align-items:center">
+    <span id="slide-label" style="color:var(--text)">מצגת ניהול תקלות</span>
+    <span class="slide-counter"><span id="cur">1</span> / <span id="tot">8</span></span>
+  </div>
+</div>
+
+<!-- PROGRESS -->
+<div id="progress-bar"></div>
+
+<!-- SLIDES -->
+<div id="slides">
+
+  <!-- ─── SLIDE 1: INTRO ─── -->
+  <div class="slide active" id="slide-1">
+    <div class="hero-wrapper">
+      <div class="glitch-line">⚠ SYSTEM ALERT // שידור בשידור חי</div>
+      <h1>כשהשידור <span>נתקע</span><br>עם אלפי צופים</h1>
+      <p class="subtitle-line">
+        מדריך מבצעי לניהול תקלות שידור בזמן הדרכה חיה —
+        שלוש תרחישי תקלה, פרוטוקול פעולה ברור, תקשורת נכונה עם הקהל
+      </p>
+      <div class="divider"></div>
+      <div class="stat-row">
+        <div class="stat-item">
+          <div class="stat-val">1,000+</div>
+          <div class="stat-lbl">משתמשים בשידור</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-val">3</div>
+          <div class="stat-lbl">תקלות ב־Session אחד</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-val">&lt;90″</div>
+          <div class="stat-lbl">זמן תגובה מקסימלי</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:12px;margin-top:8px">
+        <span class="tag tag-red">משבר שידור</span>
+        <span class="tag tag-amber">ניהול אירוע</span>
+        <span class="tag tag-green">פרוטוקול מבצעי</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── SLIDE 2: PREP ─── -->
+  <div class="slide" id="slide-2">
+    <div class="wrapper">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+        <h2>הכנה לפני השידור</h2>
+        <span class="tag tag-blue">מניעה &gt; טיפול</span>
+      </div>
+      <p style="margin-bottom:4px">רוב התקלות ניתנות למניעה. הכנה נכונה מצמצמת סיכון ב-70%+</p>
+
+      <div class="grid-2">
+        <div class="content-box" style="--accent:var(--blue)">
+          <h3 style="margin-bottom:14px;color:var(--blue)">🔧 בדיקות טכניות (48 שעות לפני)</h3>
+          <ul class="step-list">
+            <li><div class="step-num blue">1</div><div>בדיקת רוחב פס: מינימום 10Mbps Upload יציב</div></li>
+            <li><div class="step-num blue">2</div><div>קביעת ספק גיבוי לאינטרנט (hotspot סלולרי מוכן)</div></li>
+            <li><div class="step-num blue">3</div><div>Run full dress rehearsal עם הצוות הטכני</div></li>
+            <li><div class="step-num blue">4</div><div>בדיקת קיבולת שרתים לפי מספר הצופים הצפוי</div></li>
+          </ul>
+        </div>
+        <div class="content-box" style="--accent:var(--green)">
+          <h3 style="margin-bottom:14px;color:var(--green)">👥 הכנת צוות (24 שעות לפני)</h3>
+          <ul class="step-list">
+            <li><div class="step-num green">1</div><div>הגדרת War Room: ערוץ Slack/Teams ייעודי לצוות</div></li>
+            <li><div class="step-num green">2</div><div>חלוקת תפקידים: Moderator, Tech Lead, Comms Lead</div></li>
+            <li><div class="step-num green">3</div><div>הכנת הודעות מוכנות מראש לקהל (Templates)</div></li>
+            <li><div class="step-num green">4</div><div>הגדרת Runbook: מה עושים בכל תרחיש אפשרי</div></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="content-box" style="--accent:var(--amber)">
+        <div style="display:flex;align-items:center;gap:16px">
+          <span style="font-size:1.8rem">📋</span>
+          <div>
+            <h3 style="color:var(--amber);margin-bottom:6px">Checklist חובה יום השידור</h3>
+            <div style="display:flex;gap:24px;flex-wrap:wrap;font-size:.9rem;color:var(--muted)">
+              <span>✓ Stream key מאומת</span>
+              <span>✓ מצלמה + מיקרופון גיבוי מוכנים</span>
+              <span>✓ דף "חזרנו בקרוב" מוכן</span>
+              <span>✓ קשר ישיר עם פלטפורמת השידור</span>
+              <span>✓ צוות מוּדע ובפוזיציה</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── SLIDE 3: FIRST FREEZE ─── -->
+  <div class="slide" id="slide-3">
+    <div style="display:flex;flex-direction:column;gap:18px;max-width:860px;width:100%">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:14px">
+          <div class="big-number red" style="font-size:3.5rem">01</div>
+          <div>
+            <div class="tag tag-red" style="margin-bottom:6px">תקלה ראשונה</div>
+            <h2>הנתק הראשון — תגובה מיידית</h2>
+          </div>
+        </div>
+        <span class="time-badge">⏱ יעד: 0–3 דקות</span>
+      </div>
+
+      <div class="incident-banner">
+        <div class="alert-icon">⚡</div>
+        <div>
+          <div style="font-weight:700;color:var(--red)">הצופים רואים מסך קפוא / שחור / הודעת שגיאה</div>
+          <div style="font-size:.85rem;color:var(--muted);margin-top:4px">השידור נעצר. הצ'אט מתחיל לרוץ. הלחץ עולה. יש לך 90 שניות לפני שאנשים עוזבים.</div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="content-box" style="--accent:var(--red)">
+          <h3 style="color:var(--red);margin-bottom:14px">🔴 הצוות הטכני (מיד)</h3>
+          <ul class="step-list">
+            <li><div class="step-num red">1</div><div>זיהוי מקור הבעיה: רשת? שרת? תוכנה?</div></li>
+            <li><div class="step-num red">2</div><div>הפעלת Stream גיבוי מוכן מראש</div></li>
+            <li><div class="step-num red">3</div><div>אם רשת — עבור ל-Hotspot מיידית</div></li>
+            <li><div class="step-num red">4</div><div>Restart לתוכנת השידור (OBS/Streamlabs)</div></li>
+          </ul>
+        </div>
+        <div class="content-box" style="--accent:var(--amber)">
+          <h3 style="color:var(--amber);margin-bottom:14px">💬 צוות תקשורת (תוך 60 שניות)</h3>
+          <ul class="step-list">
+            <li><div class="step-num">1</div><div>פרסום הודעה מוכנה בצ'אט / WhatsApp Group</div></li>
+            <li><div class="step-num">2</div><div>עדכון בעמוד האירוע / Landing Page</div></li>
+            <li><div class="step-num">3</div><div>Pin ההודעה בצ'אט כדי שכולם יראו</div></li>
+            <li><div class="step-num">4</div><div>הודעת סטטוס ב-Social (אם רלוונטי)</div></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="content-box" style="background:rgba(16,185,129,.06);border-color:var(--green-dim);--accent:var(--green);padding:14px 20px">
+        <div style="display:flex;align-items:center;gap:12px;font-size:.9rem">
+          <span style="color:var(--green);font-weight:700">הודעת מפתח לקהל:</span>
+          <span style="color:var(--text)">"חברים, נתקלנו בתקלה טכנית. הצוות שלנו פועל לפתרון. נחזור תוך דקות ספורות — תישארו איתנו!"</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── SLIDE 4: SECOND FREEZE ─── -->
+  <div class="slide" id="slide-4">
+    <div style="display:flex;flex-direction:column;gap:18px;max-width:860px;width:100%">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:14px">
+          <div class="big-number" style="font-size:3.5rem">02</div>
+          <div>
+            <div class="tag tag-amber" style="margin-bottom:6px">תקלה שנייה</div>
+            <h2>הנתק חוזר — אסקלציה ובקרה</h2>
+          </div>
+        </div>
+        <span class="time-badge">⏱ 10–30 דק' לתוך השידור</span>
+      </div>
+
+      <div class="content-box" style="--accent:var(--amber);background:rgba(245,158,11,.05)">
+        <h3 style="color:var(--amber);margin-bottom:12px">שרשרת אסקלציה — מי מטפל במה</h3>
+        <div class="escalation-chain">
+          <div class="esc-node active">
+            <div class="esc-role">LEVEL 1</div>
+            <div class="esc-name">Moderator</div>
+            <div style="font-size:.7rem;color:var(--muted);margin-top:4px">תקשורת קהל</div>
+          </div>
+          <div class="esc-arrow">←</div>
+          <div class="esc-node active">
+            <div class="esc-role">LEVEL 2</div>
+            <div class="esc-name">Tech Lead</div>
+            <div style="font-size:.7rem;color:var(--muted);margin-top:4px">אבחון + תיקון</div>
+          </div>
+          <div class="esc-arrow">←</div>
+          <div class="esc-node">
+            <div class="esc-role">LEVEL 3</div>
+            <div class="esc-name">מנהל אירוע</div>
+            <div style="font-size:.7rem;color:var(--muted);margin-top:4px">החלטות גדולות</div>
+          </div>
+          <div class="esc-arrow">←</div>
+          <div class="esc-node">
+            <div class="esc-role">LEVEL 4</div>
+            <div class="esc-name">ספק פלטפורמה</div>
+            <div style="font-size:.7rem;color:var(--muted);margin-top:4px">תמיכה חיצונית</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="content-box">
+          <h3 style="margin-bottom:14px">🔍 אבחון מהיר</h3>
+          <ul class="step-list">
+            <li><div class="step-num">1</div><div>בדיקה: האם הבעיה חזרה באותו מקום?</div></li>
+            <li><div class="step-num">2</div><div>פתיחת Ticket עם ספק הפלטפורמה</div></li>
+            <li><div class="step-num">3</div><div>עבור לפלטפורמת שידור חלופית (YouTube/Zoom/Meet)</div></li>
+            <li><div class="step-num">4</div><div>שלח Link חדש לכל רשימת התפוצה</div></li>
+          </ul>
+        </div>
+        <div class="content-box">
+          <h3 style="margin-bottom:14px">🎯 ניהול הקהל</h3>
+          <ul class="step-list">
+            <li><div class="step-num">1</div><div>עדכון שקוף: "התקלה חוזרת — אנחנו מחליפים פלטפורמה"</div></li>
+            <li><div class="step-num">2</div><div>הפנייה ל-Link גיבוי מוכן מראש</div></li>
+            <li><div class="step-num">3</div><div>Countdown live בצ'אט: "נחזור בעוד 5 דקות"</div></li>
+            <li><div class="step-num">4</div><div>הצעת הקלטה מלאה למי שנפגע</div></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="content-box" style="--accent:var(--blue);padding:14px 20px">
+        <div style="display:flex;gap:24px;align-items:center">
+          <span style="font-size:1.4rem">💡</span>
+          <span style="font-size:.9rem;color:var(--muted)">תקלה שנייה = <strong style="color:var(--text)">דגל אדום</strong> — השרשרת הטכנית בעייתית. אל תחכה: תעבור לפלטפורמה אחרת כבר עכשיו ואל תנסה "עוד פעם אחת" עם אותו כלי.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── SLIDE 5: THIRD FREEZE / CRISIS ─── -->
+  <div class="slide" id="slide-5">
+    <div style="display:flex;flex-direction:column;gap:18px;max-width:860px;width:100%">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:14px">
+          <div class="big-number red" style="font-size:3.5rem">03</div>
+          <div>
+            <div class="tag tag-red" style="margin-bottom:6px">תקלה שלישית — משבר מלא</div>
+            <h2>ניהול משבר: 4 אפשרויות פעולה</h2>
+          </div>
+        </div>
+        <span class="time-badge">⏱ החלטה תוך 5 דקות</span>
+      </div>
+
+      <div class="crisis-grid">
+        <div class="crisis-option opt-a">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+            <span class="tag tag-green">אפשרות A — מועדפת</span>
+          </div>
+          <h3 style="margin-bottom:8px">📱 Switch ל-Zoom/Meet</h3>
+          <p style="font-size:.85rem">עבור מיידית לוידאו-קונפרנס. שלח לינק לכל הרשימה. פחות מקצועי — אבל עובד. ממשיכים את ההדרכה.</p>
+        </div>
+
+        <div class="crisis-option opt-b">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+            <span class="tag tag-blue">אפשרות B — אלטרנטיב</span>
+          </div>
+          <h3 style="margin-bottom:8px">🎙️ Podcast/Audio בלבד</h3>
+          <p style="font-size:.85rem">המשך ההדרכה באודיו בלבד דרך קישור Clubhouse/Twitter Spaces. מקל על הרשת ומאפשר המשכיות.</p>
+        </div>
+
+        <div class="crisis-option opt-c">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+            <span class="tag tag-amber">אפשרות C — דחייה</span>
+          </div>
+          <h3 style="margin-bottom:8px">📅 קביעת מועד חדש</h3>
+          <p style="font-size:.85rem">סיום מכובד: הודעה ברורה, מועד חדש מיידי, הקלטה מלאה לכל הנרשמים + פיצוי.</p>
+        </div>
+
+        <div class="crisis-option opt-d">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+            <span class="tag tag-red">אפשרות D — אחרון</span>
+          </div>
+          <h3 style="margin-bottom:8px">📝 Content Pivot</h3>
+          <p style="font-size:.85rem">שליחת PDF/מצגת מלאה + Session Q&A טקסטואלי בצ'אט. ממשיכים — בפורמט אחר לגמרי.</p>
+        </div>
+      </div>
+
+      <div class="content-box" style="--accent:var(--red);background:rgba(239,68,68,.05);padding:14px 20px">
+        <div style="display:flex;gap:12px;align-items:flex-start">
+          <span style="font-size:1.2rem;flex-shrink:0">⛔</span>
+          <span style="font-size:.9rem;color:var(--muted)">מה <strong style="color:var(--red)">לא לעשות</strong>: לחכות בשקט, להתנצל חמש פעמים ברציפות, להתפרק בציבור, לכבות את האירוע בלי תחליף — <strong style="color:var(--text)">תמיד תיתן לצופים "לאן ללכת".</strong></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── SLIDE 6: COMMUNICATION ─── -->
+  <div class="slide" id="slide-6">
+    <div style="display:flex;flex-direction:column;gap:18px;max-width:860px;width:100%">
+      <div style="margin-bottom:4px">
+        <span class="tag tag-blue" style="margin-bottom:8px;display:inline-block">תקשורת עם הקהל</span>
+        <h2>מה אומרים — ואיך אומרים את זה</h2>
+        <p style="margin-top:6px">המסר הנכון בזמן הנכון שומר על אמון הקהל גם במשבר</p>
+      </div>
+
+      <div class="grid-2">
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div class="msg-card">
+            <div class="msg-platform">// הודעה ראשונה — תוך 60 שניות</div>
+            <div class="msg-body">
+              "חברים, אנחנו חווים תקלה טכנית. הצוות עובד על זה עכשיו — נחזור בדקות הקרובות. תישארו כאן!"
+            </div>
+          </div>
+          <div class="msg-card">
+            <div class="msg-platform">// עדכון שוטף — כל 3–5 דקות</div>
+            <div class="msg-body">
+              "עדכון: אנחנו עובדים על תיקון הבעיה. עוד כ-3 דקות. תודה על הסבלנות שלכם — אתם ממש טובים 🙏"
+            </div>
+          </div>
+          <div class="msg-card">
+            <div class="msg-platform">// מעבר פלטפורמה</div>
+            <div class="msg-body">
+              "עברנו לפלטפורמה חלופית — הנה הלינק החדש: [LINK]. ממשיכים מיד! אנחנו שומרים את כל התוכן."
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div class="content-box" style="--accent:var(--green)">
+            <h3 style="color:var(--green);margin-bottom:12px">✅ עקרונות תקשורת נכונה</h3>
+            <ul class="step-list">
+              <li><div class="step-num green">✓</div><div><strong>שקיפות</strong> — הסבר מה קורה בפשטות</div></li>
+              <li><div class="step-num green">✓</div><div><strong>עדכון שוטף</strong> — אל תשתקו אפילו לדקה</div></li>
+              <li><div class="step-num green">✓</div><div><strong>תחושת שליטה</strong> — "אנחנו עובדים על זה"</div></li>
+              <li><div class="step-num green">✓</div><div><strong>הכרת תודה</strong> — ציון חיובי לסבלנות</div></li>
+              <li><div class="step-num green">✓</div><div><strong>Next Step ברור</strong> — מה קורה בהמשך</div></li>
+            </ul>
+          </div>
+          <div class="content-box" style="--accent:var(--red);background:rgba(239,68,68,.05)">
+            <h3 style="color:var(--red);margin-bottom:10px">❌ מה להימנע ממנו</h3>
+            <ul style="list-style:none;display:flex;flex-direction:column;gap:8px;font-size:.85rem;color:var(--muted)">
+              <li>✗ "אני מצטער מאוד, אני מצטער, סליחה..."</li>
+              <li>✗ שתיקה מוחלטת ביותר מ-3 דקות</li>
+              <li>✗ הסברים טכניים מורכבים לקהל</li>
+              <li>✗ האשמת ספק/טכנולוגיה בציבור</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── SLIDE 7: LESSONS ─── -->
+  <div class="slide" id="slide-7">
+    <div style="display:flex;flex-direction:column;gap:18px;max-width:860px;width:100%">
+      <div>
+        <span class="tag tag-green" style="margin-bottom:8px;display:inline-block">Post-Mortem</span>
+        <h2>לאחר האירוע — לקחים ופעולות</h2>
+        <p style="margin-top:6px">כל תקלה היא הזדמנות לשיפור. הצוות שמתחקר מתחזק.</p>
+      </div>
+
+      <div class="grid-3" style="grid-template-columns:1fr 1fr 1fr">
+        <div class="lesson-card">
+          <div class="lesson-icon">📊</div>
+          <div class="lesson-title">Post-Mortem מיידי</div>
+          <div class="lesson-desc">תוך 24 שעות — תחקיר עם כל הצוות. מה קרה? למה? מה היה אחרת?</div>
+        </div>
+        <div class="lesson-card">
+          <div class="lesson-icon">📧</div>
+          <div class="lesson-title">מכתב לנרשמים</div>
+          <div class="lesson-desc">שליחת הקלטה מלאה + הסבר + הצעת פיצוי (קורס/Session נוסף חינם)</div>
+        </div>
+        <div class="lesson-card">
+          <div class="lesson-icon">🔧</div>
+          <div class="lesson-title">שדרוג תשתית</div>
+          <div class="lesson-desc">בדיקת נקודות כשל, שדרוג ספק, הוספת רדונדנציה לכל מרכיב קריטי</div>
+        </div>
+        <div class="lesson-card">
+          <div class="lesson-icon">📋</div>
+          <div class="lesson-title">עדכון Runbook</div>
+          <div class="lesson-desc">תיעוד מה עבד ומה לא — Playbook מעודכן לאירוע הבא</div>
+        </div>
+        <div class="lesson-card">
+          <div class="lesson-icon">🏋️</div>
+          <div class="lesson-title">תרגול חירום</div>
+          <div class="lesson-desc">סימולציה חודשית של תרחישי תקלה עם כל הצוות — Drill לא אמיתי</div>
+        </div>
+        <div class="lesson-card">
+          <div class="lesson-icon">💬</div>
+          <div class="lesson-title">Feedback מהקהל</div>
+          <div class="lesson-desc">שאלון קצר לצופים — איך חוו את ניהול המשבר? מה ניתן לשפר?</div>
+        </div>
+      </div>
+
+      <div class="content-box" style="--accent:var(--green);background:rgba(16,185,129,.06);padding:14px 20px">
+        <div style="display:flex;gap:12px;align-items:center">
+          <span style="font-size:1.4rem">🎯</span>
+          <span style="font-size:.9rem;color:var(--muted)"><strong style="color:var(--green)">יעד מדיד:</strong> לאחר Post-Mortem — להגדיר 3 פעולות ספציפיות עם בעל תפקיד ותאריך יעד. בלי פעולות = אין שיפור.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── SLIDE 8: SUMMARY ─── -->
+  <div class="slide" id="slide-8">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:24px;max-width:860px;width:100%">
+      <div style="text-align:center">
+        <span class="tag tag-green" style="margin-bottom:12px;display:inline-block">סיכום מבצעי</span>
+        <h2>3 תקלות, פרוטוקול אחד, צוות אחד</h2>
+        <p style="margin-top:8px;max-width:560px">אלפי צופים לא יזכרו שהיתה תקלה — הם יזכרו איך טיפלתם בה</p>
+      </div>
+
+      <div class="summary-grid">
+        <div class="summary-card" style="border-top:2px solid var(--red)">
+          <div class="icon">⚡</div>
+          <div class="s-num">תקלה 1</div>
+          <div class="s-title">תגובה מיידית</div>
+          <div style="font-size:.8rem;color:var(--muted);text-align:center">0–90 שניות<br>גיבוי + הודעה</div>
+        </div>
+        <div class="summary-card" style="border-top:2px solid var(--amber)">
+          <div class="icon">🔺</div>
+          <div class="s-num">תקלה 2</div>
+          <div class="s-title">אסקלציה</div>
+          <div style="font-size:.8rem;color:var(--muted);text-align:center">החלפת פלטפורמה<br>שרשרת אחריות</div>
+        </div>
+        <div class="summary-card" style="border-top:2px solid var(--green)">
+          <div class="icon">🚨</div>
+          <div class="s-num">תקלה 3</div>
+          <div class="s-title">ניהול משבר</div>
+          <div style="font-size:.8rem;color:var(--muted);text-align:center">4 אפשרויות<br>החלטה תוך 5 דק'</div>
+        </div>
+        <div class="summary-card">
+          <div class="icon">📢</div>
+          <div class="s-title">תקשורת</div>
+          <div style="font-size:.8rem;color:var(--muted);text-align:center">שקיפות<br>עדכון כל 3 דק'</div>
+        </div>
+        <div class="summary-card">
+          <div class="icon">🔧</div>
+          <div class="s-title">הכנה מקדימה</div>
+          <div style="font-size:.8rem;color:var(--muted);text-align:center">Runbook<br>גיבויים מוכנים</div>
+        </div>
+        <div class="summary-card">
+          <div class="icon">📊</div>
+          <div class="s-title">לאחר האירוע</div>
+          <div style="font-size:.8rem;color:var(--muted);text-align:center">Post-Mortem<br>3 פעולות שיפור</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:16px;margin-top:8px;font-family:var(--mono);font-size:.8rem;color:var(--muted);text-align:center">
+        <span>← → ניווט בחצים</span>
+        <span>|</span>
+        <span>Space להמשך</span>
+        <span>|</span>
+        <span>לחץ על הנקודות למטה</span>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /slides -->
+
+<!-- DOTS -->
+<div id="dots"></div>
+
+<!-- NAV BUTTONS -->
+<button class="nav-btn" id="btn-prev">›</button>
+<button class="nav-btn" id="btn-next">‹</button>
+
+<script>
+  const TOTAL = 8;
+  let current = 0;
+
+  const labels = [
+    'מבוא',
+    'הכנה מקדימה',
+    'תקלה ראשונה',
+    'תקלה שנייה',
+    'תקלה שלישית',
+    'תקשורת עם הקהל',
+    'לקחים ושיפורים',
+    'סיכום'
+  ];
+
+  const slides  = document.querySelectorAll('.slide');
+  const curEl   = document.getElementById('cur');
+  const labelEl = document.getElementById('slide-label');
+  const progress = document.getElementById('progress-bar');
+  const dotsEl  = document.getElementById('dots');
+
+  // Build dots
+  for (let i = 0; i < TOTAL; i++) {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i === 0 ? ' active' : '');
+    d.addEventListener('click', () => goTo(i));
+    dotsEl.appendChild(d);
+  }
+
+  function goTo(n) {
+    if (n === current) return;
+    slides[current].classList.remove('active');
+    slides[current].classList.add('exit');
+    setTimeout(() => slides[current].classList.remove('exit'), 450);
+
+    current = (n + TOTAL) % TOTAL;
+    slides[current].classList.add('active');
+
+    // update UI
+    curEl.textContent = current + 1;
+    labelEl.textContent = labels[current];
+    progress.style.width = ((current + 1) / TOTAL * 100) + '%';
+    document.querySelectorAll('.dot').forEach((d, i) => d.classList.toggle('active', i === current));
+  }
+
+  document.getElementById('btn-next').addEventListener('click', () => goTo(current - 1));
+  document.getElementById('btn-prev').addEventListener('click', () => goTo(current + 1));
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   goTo(current + 1);
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown')  goTo(current - 1);
+    if (e.key === ' ') { e.preventDefault(); goTo(current + 1); }
+  });
+
+  // init progress
+  progress.style.width = (1 / TOTAL * 100) + '%';
+</script>
+</body>
+</html>
